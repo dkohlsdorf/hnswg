@@ -170,20 +170,22 @@ impl HNSWG {
 	while candidates.len() > 0 {
 	    let mref = nearest_neighbors.peek().unwrap();
 	    let candidate = candidates.pop().unwrap();
-	    if candidate.weight > mref.weight {
+	    if candidate.weight > -mref.weight {
 		break;
 	    }
-	    let neighbors = &self.layer_edges[layer][&candidate.dst];
-	    for &e in neighbors {
-		if !visited.contains(&e) {
-		    visited.insert(e);
-		    let dist = self.node_vec.euclidean(e, query);
-		    let bsf = nearest_neighbors.peek().unwrap().weight;
-		    if dist < bsf || nearest_neighbors.len() < k_neighbors {
-			candidates.push(Neighbor::new(e, -dist));
-			nearest_neighbors.push(Neighbor::new(e, dist));
-			if nearest_neighbors.len() > k_neighbors {
-			    nearest_neighbors.pop();
+	    if self.layer_edges[layer].contains_key(&candidate.dst) {
+		let neighbors = &self.layer_edges[layer][&candidate.dst];
+		for &e in neighbors {
+		    if !visited.contains(&e) {
+			visited.insert(e);
+			let dist = self.node_vec.euclidean(e, query);
+			let bsf = -nearest_neighbors.peek().unwrap().weight;
+			if dist < bsf || nearest_neighbors.len() < k_neighbors {
+			    candidates.push(Neighbor::new(e, dist));
+			    nearest_neighbors.push(Neighbor::new(e, -dist));
+			    if nearest_neighbors.len() > k_neighbors {
+				nearest_neighbors.pop();
+			    }
 			}
 		    }
 		}
@@ -191,6 +193,44 @@ impl HNSWG {
 	}
 	return nearest_neighbors;
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*; 
+
+    #[test]
+    fn test_search_layer() {
+	let mut candidates = BinaryHeap::new();
+	let mut hnswg = HNSWG::new(3, 3, 2);
+	
+	for i in 0 .. 10 {
+	    hnswg.add_vector(&vec![1.0 * i as f32; 3]);	
+	}
+
+	hnswg.add_edge(0, 0, 1);
+	hnswg.add_edge(0, 0, 5);
+	hnswg.add_edge(0, 1, 4);
+	hnswg.add_edge(0, 1, 3);
+	hnswg.add_edge(0, 1, 7);
+	
+	let query = vec![1.5 as f32; 3];
+	let dist = hnswg.node_vec.euclidean(0, &query);
+
+	candidates.push(Neighbor::new(0, -dist));
+
+	let mut result = hnswg.search_layer(
+	    &query, candidates, 3, 0);
+	
+	let x = vec![0, 3, 1];
+	let mut i = 0;
+	while result.len() > 0 { 
+	    let r = result.pop();
+	    i += 1;
+         }
+    }
+    
 }
 
 
@@ -207,7 +247,7 @@ fn main() {
     for i in 0 .. 10 {
 	let d = x.euclidean(i, &y);
 	println!("{:?} - {:?} = {}", x.get(i), y, x.euclidean(i, &y));	
-	h.push(Neighbor::new(0, d));
+	h.push(Neighbor::new(0, -d));
     }
     while h.len() > 0 {
 	let e = h.pop().unwrap();
